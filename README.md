@@ -38,13 +38,26 @@ sudo sh -c 'echo "NOVARC=/path/to/admin-novarc">/etc/default/prometheus-openstac
 # Install job
 sudo cp prometheus-openstack-exporter.service /etc/systemd/system/
 
-# create novarc
+# create novarc for keystone v2 Environment
 sudo cat <<EOF > /etc/prometheus-openstack-exporter/admin.novarc
 export OS_USERNAME=Admin
 export OS_TENANT_NAME=admin
 export OS_PASSWORD=XXXX
 export OS_REGION_NAME=cloudname
 export OS_AUTH_URL=http://XX.XX.XX.XX:35357/v2.0
+EOF
+
+# create novarc for keystone v3 Environment
+sudo cat <<EOF > /etc/prometheus-openstack-exporter/admin.novarc
+export OS_PROJECT_ID=XXXXXX
+export OS_PROJECT_NAME=admin
+export OS_USER_DOMAIN_NAME=Default
+export OS_USERNAME=Admin
+export OS_PASSWORD=XXXX
+export OS_REGION_NAME=cloudname
+export OS_AUTH_URL=http://XX.XX.XX.XX:5000/v3
+export OS_INTERFACE=public
+export OS_IDENTITY_API_VERSION=3
 EOF
 
 # create default config location
