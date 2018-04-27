@@ -263,7 +263,7 @@ class Neutron():
         return ips
 
     def gen_subnet_size(self):
-        labels = ['cloud', 'network_name']
+        labels = ['cloud', 'network_name', 'network_id']
         net_size = Gauge('neutron_net_size',
                          'Neutron networks size',
                          labels, registry=self.registry)
@@ -276,7 +276,7 @@ class Neutron():
                         # drown the IPv4 numbers we might care about.
                         continue
                     size += IPRange(pool['start'], pool['end']).size
-            l = [config['cloud'], self.network_map[n['id']]]
+            l = [config['cloud'], self.network_map[n['id']], n['id']]
             net_size.labels(*l).set(size)
 
     def get_stats(self):
