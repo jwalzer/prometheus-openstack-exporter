@@ -163,16 +163,13 @@ class DataGatherer(Thread):
                 prodstack['floatingips'] = neutron.list_floatingips()['floatingips']
 
                 # Instance info is very heavy, disable until we merge this bit with pantomath
+                # In addition only fetch the first 500 instances as the marker flag does not
+                # work in our environment
                 prodstack['instances'] = []
-                marker = ''
-                while True:
-                    search_opts = {'all_tenants': '1', 'limit': '100', 'marker': marker}
-                    new_instances = [x._info for x in nova.servers.list(search_opts=search_opts)]
-                    if new_instances:
-                        marker = new_instances[-1]['id']
-                        prodstack['instances'].extend(new_instances)
-                    else:
-                        break
+                search_opts = {'all_tenants': '1', 'limit': '500'}
+                instances = [x._info for x in nova.servers.list(search_opts=search_opts)]
+                if instances:
+                    prodstack['instances'].extend(instances)
 
                 prodstack['volume_quotas'] = {}
                 prodstack['nova_quotas'] = {}
@@ -270,7 +267,7 @@ class Neutron():
         return ips
 
     def gen_subnet_size(self):
-        labels = ['cloud', 'network_name']
+        labels = ['cloud', 'network_name', 'network_id']
         net_size = Gauge('neutron_net_size',
                          'Neutron networks size',
                          labels, registry=self.registry)
@@ -283,7 +280,7 @@ class Neutron():
                         # drown the IPv4 numbers we might care about.
                         continue
                     size += IPRange(pool['start'], pool['end']).size
-            l = [config['cloud'], self.network_map[n['id']]]
+            l = [config['cloud'], self.network_map[n['id']], n['id']]
             net_size.labels(*l).set(size)
 
     def get_stats(self):
