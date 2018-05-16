@@ -45,9 +45,11 @@ from prometheus_client import CollectorRegistry, generate_latest, Gauge, CONTENT
 from netaddr import IPRange
 
 import logging
+import logging.config
 import logging.handlers
 
-log = logging.getLogger('poe-logger')
+logging.captureWarnings(True)
+log = logging.getLogger(__name__)
 
 
 def get_creds_dict(*names):
@@ -170,8 +172,8 @@ class DataGatherer(Thread):
                 while True:
                     search_opts = {'all_tenants': '1', 'limit': bs, 'marker': marker}
                     new_instances = [x._info for x in nova.servers.list(search_opts=search_opts)]
+                    log.debug("{} instances".format(len(prodstack['instances'])))
                     if new_instances:
-                        log.debug("{} instances".format(len(prodstack['instances'])))
                         marker = new_instances[-1]['id']
                         prodstack['instances'].extend(new_instances)
                     else:
@@ -181,6 +183,7 @@ class DataGatherer(Thread):
                 prodstack['nova_quotas'] = {}
                 for t in prodstack['tenants']:
                     tid = t['id']
+                    log.debug('fetching quotas for tenant {}'.format(tid))
                     if self.use_nova_volumes:
                         prodstack['volume_quotas'][tid] = cinder.quotas.get(tid, usage=True)._info
                     # old OS versions (e.g. Mitaka) will 404 if we request details
@@ -453,7 +456,7 @@ class Nova():
             if i['tenant_id'] in self.tenant_map:
                 tenant = self.tenant_map[i['tenant_id']]
             else:
-                tenant = 'orphaned'
+                tenant = '__orphaned__'
             instances.labels(config['cloud'], tenant, i['status']).inc()
 
             f_id=i['flavor']['id']
@@ -621,6 +624,7 @@ class Swift():
             try:
                 r = requests.get(self.baseurl.format(h, 'quarantined'))
             except requests.exceptions.RequestException:
+                log.debug(traceback.format_exc())
                 continue
             for ring in ['accounts', 'objects', 'containers']:
                 swift_quarantine.labels(config['cloud'], h, ring).set(r.json().get(ring))
@@ -639,27 +643,29 @@ class Swift():
             try:
                 r = requests.get(self.baseurl.format(h, 'replication/object'))
             except requests.exceptions.RequestException:
+                log.debug(traceback.format_exc())
                 continue
             try:
                 swift_repl_duration.labels(config['cloud'], h, 'object').set(r.json()['object_replication_time'])
             except TypeError:
-                print(traceback.format_exc())
+                log.error(traceback.format_exc())
 
             for ring in ['account', 'container']:
                 try:
                     r = requests.get(self.baseurl.format(h, 'replication/' + ring))
                 except requests.exceptions.RequestException:
+                    log.debug(traceback.format_exc())
                     continue
                 try:
                     swift_repl_duration.labels(config['cloud'], h, ring).set(r.json()['replication_time'])
                 except TypeError:
-                    print(traceback.format_exc())
+                    log.error(traceback.format_exc())
 
                 for metric in metrics:
                     try:
                         swift_repl.labels(config['cloud'], h, ring, metric).set(r.json()['replication_stats'][metric])
                     except TypeError:
-                        print(traceback.format_exc())
+                        log.error(traceback.format_exc())
 
     def get_stats(self):
         self.gen_up_stats()
@@ -728,12 +734,35 @@ if __name__ == '__main__':
                         type=argparse.FileType('r'))
     args = parser.parse_args()
     log.setLevel(logging.DEBUG)
+
+    config = yaml.safe_load(args.config_file.read())
+
+    try:
+        logging.config.dictConfig(config['logging'])
+    except KeyError:
+        sh=logging.StreamHandler()
+        try:
+            sh.setFormatter(
+                        logging.Formatter(config['logging']['formatters']['simple']['format'])
+                    )
+        except (AttributeError,KeyError):
+            log.debug(traceback.format_exc())
+
+        log.addHandler(sh)
+
     for logsock in ('/dev/log', '/var/run/syslog'):
         if path.exists(logsock):
-            log.addHandler(logging.handlers.SysLogHandler(address=logsock))
-    else:
-        log.addHandler(logging.StreamHandler())
-    config = yaml.safe_load(args.config_file.read())
+            sh = logging.handlers.SysLogHandler(address=logsock)
+            try:
+                sh.setFormatter(
+                            logging.Formatter(config['logging']['formatters']['simple']['format'])
+                        )
+            except (AttributeError,KeyError):
+                log.debug(traceback.format_exc())
+
+            log.addHandler(sh)
+            reqlog.addHandler(sh)
+
     data_gatherer = DataGatherer()
     data_gatherer.start()
     server = ForkingHTTPServer(('', config.get('listen_port')), handler)
