@@ -63,7 +63,7 @@ def get_creds_list(*names):
 
 def maybe_get_cacert():
     """Get cacert, None if unset"""
-    return env.get("OS_CACERT")
+    return config.get('check_certs',True) and env.get("OS_CACERT")
 
 
 def get_clients():

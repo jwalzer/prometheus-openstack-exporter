@@ -2,6 +2,8 @@
 # Copyright (C) 2016 Canonical, Ltd.
 #
 
+check_certs: false
+
 listen_port: 9183
 cache_refresh_interval: 300  # In seconds
 cache_file: /var/cache/prometheus-openstack-exporter/mycloud
