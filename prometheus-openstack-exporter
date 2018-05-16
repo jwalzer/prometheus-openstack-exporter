@@ -163,13 +163,16 @@ class DataGatherer(Thread):
                 prodstack['floatingips'] = neutron.list_floatingips()['floatingips']
 
                 # Instance info is very heavy, disable until we merge this bit with pantomath
-                # In addition only fetch the first 500 instances as the marker flag does not
-                # work in our environment
                 prodstack['instances'] = []
-                search_opts = {'all_tenants': '1', 'limit': '500'}
-                instances = [x._info for x in nova.servers.list(search_opts=search_opts)]
-                if instances:
-                    prodstack['instances'].extend(instances)
+                marker = ''
+                while True:
+                    search_opts = {'all_tenants': '1', 'limit': '100', 'marker': marker}
+                    new_instances = [x._info for x in nova.servers.list(search_opts=search_opts)]
+                    if new_instances:
+                        marker = new_instances[-1]['id']
+                        prodstack['instances'].extend(new_instances)
+                    else:
+                        break
 
                 prodstack['volume_quotas'] = {}
                 prodstack['nova_quotas'] = {}
