@@ -163,12 +163,15 @@ class DataGatherer(Thread):
                 prodstack['floatingips'] = neutron.list_floatingips()['floatingips']
 
                 # Instance info is very heavy, disable until we merge this bit with pantomath
+                bs = config.get('poll_batch_size',100)
+                log.debug("polling instances, {} each batch".format(bs))
                 prodstack['instances'] = []
                 marker = ''
                 while True:
-                    search_opts = {'all_tenants': '1', 'limit': '100', 'marker': marker}
+                    search_opts = {'all_tenants': '1', 'limit': bs, 'marker': marker}
                     new_instances = [x._info for x in nova.servers.list(search_opts=search_opts)]
                     if new_instances:
+                        log.debug("{} instances".format(len(prodstack['instances'])))
                         marker = new_instances[-1]['id']
                         prodstack['instances'].extend(new_instances)
                     else:
