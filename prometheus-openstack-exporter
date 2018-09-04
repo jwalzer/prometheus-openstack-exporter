@@ -540,6 +540,15 @@ class Nova():
             res_disk = Gauge('nova_resources_disk_gbs', 'Nova disk usage metric unavailable, missing flavors',
                              [], registry=self.registry)
 
+    def gen_tenant_stats(self):
+        tenants_info = Gauge(
+                'openstack_tenant_info',
+                'OpenStack information on tenants',
+                ['domain_id', 'tenant_id', 'tenant_name', 'tenant_description'],
+                 registry=self.registry)
+        for t in self.prodstack['tenants']:
+            tenants_info.labels(t['domain_id'],t['id'],t['name'],t['description']).set(1)
+
     def gen_overcommit_stats(self):
         labels = ['cloud', 'resource']
         openstack_overcommit = Gauge('openstack_allocation_ratio', 'Openstack overcommit ratios',
@@ -585,6 +594,7 @@ class Nova():
 
     def get_stats(self):
         log.debug("get_stats")
+        self.gen_tenant_stats()
         self.gen_hypervisor_stats()
         self.gen_instance_stats()
         self.gen_overcommit_stats()
@@ -769,7 +779,6 @@ if __name__ == '__main__':
                 log.debug(traceback.format_exc())
 
             log.addHandler(sh)
-            reqlog.addHandler(sh)
 
     data_gatherer = DataGatherer()
     data_gatherer.start()
